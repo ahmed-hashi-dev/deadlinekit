@@ -1,0 +1,43 @@
+{
+  "name": "deadlinekit",
+  "version": "0.1.0",
+  "description": "Open-source SDK for request deadlines, latency budgets, cancellation, and graceful degradation in backend systems.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahmed-hashi-dev/deadlinekit.git"
+  },
+  "keywords": [
+    "deadline",
+    "latency",
+    "timeout",
+    "cancellation",
+    "backend",
+    "sdk",
+    "typescript",
+    "nodejs"
+  ],
+  "author": "Ahmed Hashi Hassan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ahmed-hashi-dev/deadlinekit/issues"
+  },
+  "homepage": "https://github.com/ahmed-hashi-dev/deadlinekit#readme",
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.9"
+  }
+}
