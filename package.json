@@ -23,7 +23,11 @@
     "example:basic": "tsx examples/basic.ts",
     "example:fallback": "tsx examples/fallback.ts",
     "example:expired": "tsx examples/expired-deadline.ts",
-    "example:logger": "tsx examples/logger.ts"
+    "example:logger": "tsx examples/logger.ts",
+    "lint": "eslint src tests",
+    "lint:fix": "eslint src tests --fix",
+    "format": "prettier --write src tests",
+    "format:check": "prettier --check src tests"
   },
   "repository": {
     "type": "git",
@@ -46,10 +50,14 @@
   },
   "homepage": "https://github.com/ahmed-hashi-dev/deadlinekit#readme",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "prettier": "^3.8.4",
     "tsup": "^8.5.1",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.61.1",
     "vitest": "^4.1.9"
   }
 }
