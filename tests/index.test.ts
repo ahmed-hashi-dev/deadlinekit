@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
-import {
-  createDeadlineBudget,
-  DeadlineExceededError,
-  isAbortError,
-} from "../src/index.js";
+import { createDeadlineBudget, DeadlineExceededError, isAbortError } from "../src/index.js";
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+function abortReasonToError(reason: unknown): Error {
+  return reason instanceof Error ? reason : new Error("Operation aborted");
+}
 
 function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
-      reject(signal.reason);
+      reject(abortReasonToError(signal.reason));
       return;
     }
 
@@ -22,9 +25,9 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
       "abort",
       () => {
         clearTimeout(timeoutId);
-        reject(signal.reason);
+        reject(abortReasonToError(signal.reason));
       },
-      { once: true }
+      { once: true },
     );
   });
 }
@@ -52,14 +55,10 @@ describe("createDeadlineBudget", () => {
   it("returns the operation result when it finishes before timeout", async () => {
     const budget = createDeadlineBudget({ timeoutMs: 100 });
 
-    const result = await budget.run(
-      "fast-operation",
-      { timeoutMs: 50 },
-      async (signal) => {
-        await abortableSleep(10, signal);
-        return "success";
-      }
-    );
+    const result = await budget.run("fast-operation", { timeoutMs: 50 }, async (signal) => {
+      await abortableSleep(10, signal);
+      return "success";
+    });
 
     expect(result).toBe("success");
   });
@@ -67,15 +66,14 @@ describe("createDeadlineBudget", () => {
   it("passes an AbortSignal to the operation", async () => {
     const budget = createDeadlineBudget({ timeoutMs: 100 });
 
-    const result = await budget.run(
-      "signal-operation",
-      { timeoutMs: 50 },
-      async (signal) => {
-        expect(signal).toBeInstanceOf(AbortSignal);
-        expect(signal.aborted).toBe(false);
-        return "success";
-      }
-    );
+    const result = await budget.run("signal-operation", { timeoutMs: 50 }, async (signal) => {
+      await Promise.resolve();
+
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal.aborted).toBe(false);
+
+      return "success";
+    });
 
     expect(result).toBe("success");
   });
@@ -87,7 +85,7 @@ describe("createDeadlineBudget", () => {
       budget.run("slow-operation", { timeoutMs: 10 }, async (signal) => {
         await abortableSleep(50, signal);
         return "done";
-      })
+      }),
     ).rejects.toMatchObject({
       name: "DeadlineExceededError",
       operationName: "slow-operation",
@@ -107,7 +105,7 @@ describe("createDeadlineBudget", () => {
       async (signal) => {
         await abortableSleep(50, signal);
         return "real-value";
-      }
+      },
     );
 
     expect(result).toBe("fallback-value");
@@ -120,8 +118,9 @@ describe("createDeadlineBudget", () => {
 
     await expect(
       budget.run("expired-operation", {}, async () => {
+        await Promise.resolve();
         return "should-not-run";
-      })
+      }),
     ).rejects.toMatchObject({
       name: "DeadlineExceededError",
       operationName: "expired-operation",
@@ -140,8 +139,9 @@ describe("createDeadlineBudget", () => {
         fallback: "expired-fallback",
       },
       async () => {
+        await Promise.resolve();
         return "should-not-run";
-      }
+      },
     );
 
     expect(result).toBe("expired-fallback");
@@ -161,99 +161,101 @@ describe("createDeadlineBudget", () => {
   });
 
   it("calls onOperationEnd after a successful operation", async () => {
-  const events: unknown[] = [];
+    const events: unknown[] = [];
 
-  const budget = createDeadlineBudget({
-    timeoutMs: 100,
-    onOperationEnd: (event) => {
-      events.push(event);
-    },
+    const budget = createDeadlineBudget({
+      timeoutMs: 100,
+      onOperationEnd: (event) => {
+        events.push(event);
+      },
+    });
+
+    const result = await budget.run("successful-operation", {}, async (signal) => {
+      await abortableSleep(10, signal);
+      return "success";
+    });
+
+    expect(result).toBe("success");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      name: "successful-operation",
+      timedOut: false,
+      usedFallback: false,
+      error: null,
+    });
   });
 
-  const result = await budget.run("successful-operation", {}, async (signal) => {
-    await abortableSleep(10, signal);
-    return "success";
+  it("calls onOperationEnd after a timeout with fallback", async () => {
+    const events: unknown[] = [];
+
+    const budget = createDeadlineBudget({
+      timeoutMs: 100,
+      onOperationEnd: (event) => {
+        events.push(event);
+      },
+    });
+
+    const result = await budget.run(
+      "timeout-with-fallback",
+      {
+        timeoutMs: 10,
+        fallback: "fallback",
+      },
+      async (signal) => {
+        await abortableSleep(50, signal);
+        return "real";
+      },
+    );
+
+    expect(result).toBe("fallback");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      name: "timeout-with-fallback",
+      timedOut: true,
+      usedFallback: true,
+    });
   });
 
-  expect(result).toBe("success");
-  expect(events).toHaveLength(1);
-  expect(events[0]).toMatchObject({
-    name: "successful-operation",
-    timedOut: false,
-    usedFallback: false,
-    error: null,
-  });
-});
+  it("calls onOperationEnd after a thrown operation error", async () => {
+    const events: unknown[] = [];
+    const operationError = new Error("database failed");
 
-it("calls onOperationEnd after a timeout with fallback", async () => {
-  const events: unknown[] = [];
+    const budget = createDeadlineBudget({
+      timeoutMs: 100,
+      onOperationEnd: (event) => {
+        events.push(event);
+      },
+    });
 
-  const budget = createDeadlineBudget({
-    timeoutMs: 100,
-    onOperationEnd: (event) => {
-      events.push(event);
-    },
-  });
+    await expect(
+      budget.run("error-operation", {}, async () => {
+        await Promise.resolve();
+        throw operationError;
+      }),
+    ).rejects.toThrow("database failed");
 
-  const result = await budget.run(
-    "timeout-with-fallback",
-    {
-      timeoutMs: 10,
-      fallback: "fallback",
-    },
-    async (signal) => {
-      await abortableSleep(50, signal);
-      return "real";
-    }
-  );
-
-  expect(result).toBe("fallback");
-  expect(events).toHaveLength(1);
-  expect(events[0]).toMatchObject({
-    name: "timeout-with-fallback",
-    timedOut: true,
-    usedFallback: true,
-  });
-});
-
-it("calls onOperationEnd after a thrown operation error", async () => {
-  const events: unknown[] = [];
-  const operationError = new Error("database failed");
-
-  const budget = createDeadlineBudget({
-    timeoutMs: 100,
-    onOperationEnd: (event) => {
-      events.push(event);
-    },
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      name: "error-operation",
+      timedOut: false,
+      usedFallback: false,
+      error: operationError,
+    });
   });
 
-  await expect(
-    budget.run("error-operation", {}, async () => {
-      throw operationError;
-    })
-  ).rejects.toThrow("database failed");
+  it("does not let onOperationEnd errors break the operation", async () => {
+    const budget = createDeadlineBudget({
+      timeoutMs: 100,
+      onOperationEnd: () => {
+        throw new Error("logger failed");
+      },
+    });
 
-  expect(events).toHaveLength(1);
-  expect(events[0]).toMatchObject({
-    name: "error-operation",
-    timedOut: false,
-    usedFallback: false,
-    error: operationError,
+    const result = await budget.run("safe-callback-operation", {}, async () => {
+      await Promise.resolve();
+      return "success";
+    });
+
+    expect(result).toBe("success");
   });
-});
-
-it("does not let onOperationEnd errors break the operation", async () => {
-  const budget = createDeadlineBudget({
-    timeoutMs: 100,
-    onOperationEnd: () => {
-      throw new Error("logger failed");
-    },
-  });
-
-  const result = await budget.run("safe-callback-operation", {}, async () => {
-    return "success";
-  });
-
-  expect(result).toBe("success");
-});
 });

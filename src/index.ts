@@ -19,6 +19,15 @@ export type RunOptions<T> = {
   fallback?: T;
 };
 
+export type DeadlineBudget = {
+  run: <T>(
+    name: string,
+    runOptions: RunOptions<T>,
+    operation: (signal: AbortSignal) => Promise<T>,
+  ) => Promise<T>;
+  remainingMs: () => number;
+};
+
 export class DeadlineExceededError extends Error {
   public readonly operationName: string;
   public readonly deadlineReason: DeadlineExceededReason;
@@ -48,7 +57,7 @@ export function isAbortError(error: unknown): boolean {
 
 function emitOperationEnd(
   callback: ((event: OperationEndEvent) => void) | undefined,
-  event: OperationEndEvent
+  event: OperationEndEvent,
 ): void {
   try {
     callback?.(event);
@@ -60,13 +69,14 @@ function emitOperationEnd(
 export function consoleLogger(event: OperationEndEvent): void {
   const status = event.timedOut ? "timeout" : event.error ? "error" : "ok";
 
+  // eslint-disable-next-line no-console
   console.log(
     `[deadlinekit] ${event.name} ${status} in ${event.durationMs}ms ` +
-      `(${event.remainingBudgetMs}ms remaining)`
+      `(${event.remainingBudgetMs}ms remaining)`,
   );
 }
 
-export function createDeadlineBudget(options: DeadlineBudgetOptions) {
+export function createDeadlineBudget(options: DeadlineBudgetOptions): DeadlineBudget {
   const startedAt = Date.now();
   const deadlineAt = startedAt + options.timeoutMs;
 
@@ -77,7 +87,7 @@ export function createDeadlineBudget(options: DeadlineBudgetOptions) {
   async function run<T>(
     name: string,
     runOptions: RunOptions<T>,
-    operation: (signal: AbortSignal) => Promise<T>
+    operation: (signal: AbortSignal) => Promise<T>,
   ): Promise<T> {
     const start = Date.now();
     let timedOut = false;
@@ -90,10 +100,7 @@ export function createDeadlineBudget(options: DeadlineBudgetOptions) {
       timedOut = true;
       usedFallback = "fallback" in runOptions;
 
-      const deadlineError = new DeadlineExceededError(
-        name,
-        "budget already expired"
-      );
+      const deadlineError = new DeadlineExceededError(name, "budget already expired");
 
       emitOperationEnd(options.onOperationEnd, {
         name,
@@ -105,7 +112,7 @@ export function createDeadlineBudget(options: DeadlineBudgetOptions) {
       });
 
       if ("fallback" in runOptions) {
-        return runOptions.fallback as T;
+        return runOptions.fallback;
       }
 
       throw deadlineError;
@@ -126,7 +133,7 @@ export function createDeadlineBudget(options: DeadlineBudgetOptions) {
 
       if ("fallback" in runOptions && isAbortError(caughtError)) {
         usedFallback = true;
-        return runOptions.fallback as T;
+        return runOptions.fallback;
       }
 
       throw caughtError;
