@@ -1,6 +1,26 @@
-import { createDeadlineBudget } from "../src/index";
+import { createDeadlineBudget } from "../src/index.js";
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      resolve();
+    }, ms);
+
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timeoutId);
+        reject(signal.reason);
+      },
+      { once: true }
+    );
+  });
+}
 
 async function main() {
   const budget = createDeadlineBudget({ timeoutMs: 500 });
@@ -11,8 +31,8 @@ async function main() {
       timeoutMs: 100,
       fallback: "Fallback result from cache",
     },
-    async () => {
-      await sleep(300);
+    async (signal) => {
+      await abortableSleep(300, signal);
       return "Real API result";
     }
   );
