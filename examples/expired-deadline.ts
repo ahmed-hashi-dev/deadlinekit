@@ -1,6 +1,10 @@
-import { createDeadlineBudget } from "../src/index";
+import { createDeadlineBudget } from "../src/index.js";
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 async function main() {
   const budget = createDeadlineBudget({ timeoutMs: 50 });
