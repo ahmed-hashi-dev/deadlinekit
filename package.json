@@ -1,7 +1,7 @@
 {
   "name": "deadlinekit",
-  "version": "0.1.0",
-  "description": "Open-source SDK for request deadlines, latency budgets, cancellation, and graceful degradation in backend systems.",
+  "version": "0.1.0-alpha.1",
+  "description": "A small TypeScript utility for request deadlines, operation timeouts, AbortSignal cancellation, fallbacks, and observability in Node.js services.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -14,7 +14,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts",
@@ -38,6 +40,9 @@
     "latency",
     "timeout",
     "cancellation",
+    "abortsignal",
+    "fallback",
+    "observability",
     "backend",
     "sdk",
     "typescript",
