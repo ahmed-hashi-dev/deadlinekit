@@ -12,7 +12,10 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "example:basic": "tsx examples/basic.ts",
+    "example:fallback": "tsx examples/fallback.ts",
+    "example:expired": "tsx examples/expired-deadline.ts"
   },
   "repository": {
     "type": "git",
@@ -37,6 +40,7 @@
   "devDependencies": {
     "@types/node": "^25.9.3",
     "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.9"
   }
