@@ -159,4 +159,101 @@ describe("createDeadlineBudget", () => {
 
     expect(isAbortError(error)).toBe(true);
   });
+
+  it("calls onOperationEnd after a successful operation", async () => {
+  const events: unknown[] = [];
+
+  const budget = createDeadlineBudget({
+    timeoutMs: 100,
+    onOperationEnd: (event) => {
+      events.push(event);
+    },
+  });
+
+  const result = await budget.run("successful-operation", {}, async (signal) => {
+    await abortableSleep(10, signal);
+    return "success";
+  });
+
+  expect(result).toBe("success");
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    name: "successful-operation",
+    timedOut: false,
+    usedFallback: false,
+    error: null,
+  });
+});
+
+it("calls onOperationEnd after a timeout with fallback", async () => {
+  const events: unknown[] = [];
+
+  const budget = createDeadlineBudget({
+    timeoutMs: 100,
+    onOperationEnd: (event) => {
+      events.push(event);
+    },
+  });
+
+  const result = await budget.run(
+    "timeout-with-fallback",
+    {
+      timeoutMs: 10,
+      fallback: "fallback",
+    },
+    async (signal) => {
+      await abortableSleep(50, signal);
+      return "real";
+    }
+  );
+
+  expect(result).toBe("fallback");
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    name: "timeout-with-fallback",
+    timedOut: true,
+    usedFallback: true,
+  });
+});
+
+it("calls onOperationEnd after a thrown operation error", async () => {
+  const events: unknown[] = [];
+  const operationError = new Error("database failed");
+
+  const budget = createDeadlineBudget({
+    timeoutMs: 100,
+    onOperationEnd: (event) => {
+      events.push(event);
+    },
+  });
+
+  await expect(
+    budget.run("error-operation", {}, async () => {
+      throw operationError;
+    })
+  ).rejects.toThrow("database failed");
+
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    name: "error-operation",
+    timedOut: false,
+    usedFallback: false,
+    error: operationError,
+  });
+});
+
+it("does not let onOperationEnd errors break the operation", async () => {
+  const budget = createDeadlineBudget({
+    timeoutMs: 100,
+    onOperationEnd: () => {
+      throw new Error("logger failed");
+    },
+  });
+
+  const result = await budget.run("safe-callback-operation", {}, async () => {
+    return "success";
+  });
+
+  expect(result).toBe("success");
+});
 });
